@@ -1,6 +1,7 @@
 import os
 import sys
 import glob
+import json
 
 def replace_string_in_files(original, replacement):
     """
@@ -28,23 +29,62 @@ def replace_string_in_files(original, replacement):
             if filename == os.path.basename(__file__):
                 continue
                 
-            with open(filename, 'r', encoding='utf-8', errors='ignore') as file:
-                content = file.read()
-            
-            # Count occurrences of the original string
-            occurrences = content.count(original)
-            
-            if occurrences > 0:
-                # Replace the string
-                new_content = content.replace(original, replacement)
+            # Check if the file is a Jupyter notebook
+            if filename.lower().endswith('.ipynb'):
+                # Handle Jupyter notebook as JSON
+                with open(filename, 'r', encoding='utf-8', errors='ignore') as file:
+                    notebook_content = json.load(file)
                 
-                # Write the modified content back to the file
-                with open(filename, 'w', encoding='utf-8') as file:
-                    file.write(new_content)
+                # Process each cell in the notebook
+                replacements_in_notebook = 0
                 
-                files_modified += 1
-                total_replacements += occurrences
-                print(f"  Modified: {filename} ({occurrences} replacements)")
+                # Function to replace strings in notebook cell content
+                def replace_in_cell_content(content):
+                    if isinstance(content, str):
+                        return content.replace(original, replacement)
+                    elif isinstance(content, list):
+                        return [replace_in_cell_content(item) for item in content]
+                    elif isinstance(content, dict):
+                        return {k: replace_in_cell_content(v) for k, v in content.items()}
+                    else:
+                        return content
+                
+                # Apply replacements throughout the notebook structure
+                modified_notebook = replace_in_cell_content(notebook_content)
+                
+                # Count replacements by comparing the stringified JSON
+                original_json = json.dumps(notebook_content)
+                modified_json = json.dumps(modified_notebook)
+                occurrences = original_json.count(original)
+                
+                if occurrences > 0:
+                    # Write the modified notebook
+                    with open(filename, 'w', encoding='utf-8') as file:
+                        json.dump(modified_notebook, file, indent=4)
+                    
+                    files_modified += 1
+                    total_replacements += occurrences
+                    print(f"  Modified: {filename} ({occurrences} replacements)")
+            
+            else:
+                # Handle regular text files
+                with open(filename, 'r', encoding='utf-8', errors='ignore') as file:
+                    content = file.read()
+                
+                # Count occurrences of the original string
+                occurrences = content.count(original)
+                
+                if occurrences > 0:
+                    # Replace the string
+                    new_content = content.replace(original, replacement)
+                    
+                    # Write the modified content back to the file
+                    with open(filename, 'w', encoding='utf-8') as file:
+                        file.write(new_content)
+                    
+                    files_modified += 1
+                    total_replacements += occurrences
+                    print(f"  Modified: {filename} ({occurrences} replacements)")
         except Exception as e:
             print(f"  Error processing {filename}: {str(e)}")
     
